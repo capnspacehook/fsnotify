@@ -30,6 +30,8 @@ type Event struct {
 	// This is a bitmask and some systems may send multiple operations at once.
 	// Use the Event.Has() method instead of comparing with ==.
 	Op Op
+
+	Mask uint32
 }
 
 // Op describes a set of file operations.
@@ -40,6 +42,10 @@ type Op uint32
 const (
 	// A new pathname was created.
 	Create Op = 1 << iota
+
+	// The pathname was read from; this does *not* mean the read has finished,
+	// and a read can be followed by more reads.
+	Read
 
 	// The pathname was written to; this does *not* mean the write has finished,
 	// and a write can be followed by more writes.
@@ -77,6 +83,9 @@ func (o Op) String() string {
 	if o.Has(Remove) {
 		b.WriteString("|REMOVE")
 	}
+	if o.Has(Read) {
+		b.WriteString("|READ")
+	}
 	if o.Has(Write) {
 		b.WriteString("|WRITE")
 	}
@@ -106,7 +115,8 @@ func (e Event) String() string {
 type (
 	addOpt   func(opt *withOpts)
 	withOpts struct {
-		bufsize int
+		bufsize      int
+		inotifyFlags uint32
 	}
 )
 
@@ -131,6 +141,12 @@ func getOptions(opts ...addOpt) withOpts {
 // you're hitting "queue or buffer overflow" errors ([ErrEventOverflow]).
 func WithBufferSize(bytes int) addOpt {
 	return func(opt *withOpts) { opt.bufsize = bytes }
+}
+
+// WithInotifyFlags sets Inotify flags for the Linux backend. This is a no-op
+// for other backends.
+func WithInotifyFlags(flags uint32) addOpt {
+	return func(opt *withOpts) { opt.inotifyFlags = flags }
 }
 
 // Check if this path is recursive (ends with "/..." or "\..."), and return the

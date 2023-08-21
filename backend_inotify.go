@@ -349,17 +349,23 @@ func (w *Watcher) Add(name string) error { return w.AddWith(name) }
 //
 //   - [WithBufferSize] sets the buffer size for the Windows backend; no-op on
 //     other platforms. The default is 64K (65536 bytes).
+//
+//   - [WithInotifyFlags] sets Inotify flags for the Linux backend; no-op on
+//     other platforms.
 func (w *Watcher) AddWith(name string, opts ...addOpt) error {
 	if w.isClosed() {
 		return ErrClosed
 	}
 
 	name = filepath.Clean(name)
-	_ = getOptions(opts...)
+	with := getOptions(opts...)
 
 	var flags uint32 = unix.IN_MOVED_TO | unix.IN_MOVED_FROM |
 		unix.IN_CREATE | unix.IN_ATTRIB | unix.IN_MODIFY |
 		unix.IN_MOVE_SELF | unix.IN_DELETE | unix.IN_DELETE_SELF
+	if with.inotifyFlags != 0 {
+		flags = with.inotifyFlags
+	}
 
 	return w.watches.updatePath(name, func(existing *watch) (*watch, error) {
 		if existing != nil {
@@ -561,12 +567,18 @@ func (w *Watcher) readEvents() {
 
 // newEvent returns an platform-independent Event based on an inotify mask.
 func (w *Watcher) newEvent(name string, mask uint32) Event {
-	e := Event{Name: name}
+	e := Event{
+		Name: name,
+		Mask: mask,
+	}
 	if mask&unix.IN_CREATE == unix.IN_CREATE || mask&unix.IN_MOVED_TO == unix.IN_MOVED_TO {
 		e.Op |= Create
 	}
 	if mask&unix.IN_DELETE_SELF == unix.IN_DELETE_SELF || mask&unix.IN_DELETE == unix.IN_DELETE {
 		e.Op |= Remove
+	}
+	if mask&unix.IN_ACCESS == unix.IN_ACCESS {
+		e.Op |= Read
 	}
 	if mask&unix.IN_MODIFY == unix.IN_MODIFY {
 		e.Op |= Write

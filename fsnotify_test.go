@@ -521,7 +521,6 @@ func TestWatchSymlink(t *testing.T) {
 			addWatch(t, w, tmp)
 			rm(t, tmp, "link")
 			cat(t, "foo", tmp, "link")
-
 		}, `
 			write  /link
 			create /link
@@ -1349,16 +1348,23 @@ func TestEventString(t *testing.T) {
 		want string
 	}{
 		{Event{}, `[no events]   ""`},
-		{Event{"/file", 0}, `[no events]   "/file"`},
-
-		{Event{"/file", Chmod | Create},
-			`CREATE|CHMOD  "/file"`},
-		{Event{"/file", Rename},
-			`RENAME        "/file"`},
-		{Event{"/file", Remove},
-			`REMOVE        "/file"`},
-		{Event{"/file", Write | Chmod},
-			`WRITE|CHMOD   "/file"`},
+		{Event{"/file", 0, 0}, `[no events]   "/file"`},
+		{
+			Event{"/file", Chmod | Create, 0},
+			`CREATE|CHMOD  "/file"`,
+		},
+		{
+			Event{"/file", Rename, 0},
+			`RENAME        "/file"`,
+		},
+		{
+			Event{"/file", Remove, 0},
+			`REMOVE        "/file"`,
+		},
+		{
+			Event{"/file", Write | Chmod, 0},
+			`WRITE|CHMOD   "/file"`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1493,6 +1499,7 @@ func TestWatchStress(t *testing.T) {
 	var extra Events
 	for _, h := range have {
 		h.Name = filepath.ToSlash(strings.TrimPrefix(h.Name, tmp))
+		h.Mask = 0
 		_, ok := want[h]
 		if ok {
 			delete(want, h)
